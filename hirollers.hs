@@ -1,6 +1,67 @@
 import System.Random
 import Data.Map
 
+data BigBoard = BigBoard {
+                    boardSize :: Int,
+                    boardDepth :: Int,
+                    boardState :: [[Int]]
+} deriving (Show)
+
+data Die = Die {
+            dieSize :: Int,
+            dieValue :: Int
+} deriving (Show)
+
+data Game = Game {
+                numDice :: Int,
+                dice :: [Die],
+                bigBoard :: BigBoard,
+                doublesTokens :: Int,
+                totalRolls :: Int
+} deriving (Show)
+
+standardGame :: Game
+standardGame = Game {
+    numDice = 2,
+    dice = [
+        Die {dieSize = 6, dieValue = 0},
+        Die {dieSize = 6, dieValue = 0}],
+    bigBoard = BigBoard {
+        boardSize = 9,
+        boardDepth = 1,
+        boardState = [[1..9]]},
+    doublesTokens = 0,
+    totalRolls = 0
+}
+
+doubleGame :: Game
+doubleGame = Game {
+    numDice = 2,
+    dice = [
+        Die {dieSize = 6, dieValue = 0},
+        Die {dieSize = 6, dieValue = 0}],
+    bigBoard = BigBoard {
+        boardSize = 9,
+        boardDepth = 2,
+        boardState = [[1..9],[1..9]]},
+    doublesTokens = 0,
+    totalRolls = 0
+}
+
+generateNewGame :: Int -> Int -> Int -> Int -> Game
+generateNewGame numberOfDice diceSize sizeOfBoard numberOfBoards = Game {
+                                        numDice = numberOfDice,
+                                        dice = take numberOfDice (repeat (Die {dieSize = 6, dieValue = 0})),
+                                        bigBoard = BigBoard {
+                                            boardSize = sizeOfBoard,
+                                            boardDepth = numberOfBoards,
+                                            boardState = take numberOfBoards (repeat [1..sizeOfBoard])
+                                        },
+                                        doublesTokens = 0,
+                                        totalRolls = 0
+                                    }
+
+
 type Board = (Int, [Int], Int)  -- roll, board, doubles
 newBoard = (0, [1..9], 0) :: Board
 dn = 6
