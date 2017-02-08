@@ -1,0 +1,21 @@
+New Game is Injected into the Loop with starting state of no roll and full board
+
+If Board is Empty
+    - "Game Over You Won!""
+    - "Enter to Start New Game:"
+    - Inject New Game into the Loop
+If Roll is 0
+    - "Enter to roll:"
+    - Set Roll into game along with upping Doubles if needed and Loop
+If No Possible Moves
+    If No Doubles
+        - "Game Over You Lose!"
+        - "Enter to Start New Game:"
+    Else
+        "You can't move. Enter to use a Doubles Token:"
+        - Set Roll into game long with lowering and then upping Doubles if needed and Loop
+Else
+    - Display Move Choices
+    - Get Input
+    - Remove choices from board and Loop
+
