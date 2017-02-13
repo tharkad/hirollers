@@ -114,7 +114,7 @@ overGame = Game {
 generateNewGame :: Int -> Int -> Int -> Int -> Game
 generateNewGame numberOfDice diceSize sizeOfBoard numberOfBoards = Game {
     numDice = numberOfDice,
-    dice = take numberOfDice (repeat (Die {dieSize = 6, dieValue = 0})),
+    dice = take numberOfDice (repeat (Die {dieSize = diceSize, dieValue = 0})),
     bigBoard = BigBoard {
         boardSize = sizeOfBoard,
         boardDepth = numberOfBoards,
@@ -124,24 +124,9 @@ generateNewGame numberOfDice diceSize sizeOfBoard numberOfBoards = Game {
     totalRolls = 0
 }
 
-type Board = (Int, [Int], Int)  -- roll, board, doubles
-newBoard = (0, [1..9], 0) :: Board
-dn = 6
-
-setRoll :: Int -> Board -> Board
-setRoll r (_,b,d) = (r,b,d)
-
-setDoubles :: Int -> Board -> Board
-setDoubles d (r,b,_) = (r,b,d)
-
 sublists :: [a] -> [[a]]
 sublists [] = [[]]
 sublists (x:xs) = [x:sublist | sublist <- sublists xs] ++ sublists xs
-
-possibleMoves :: Board -> [[Int]]
-possibleMoves (_,[],_) = []
-possibleMoves (0,_,_) = []
-possibleMoves (r,b,_) = [xs | xs <- sublists ([y | y <- b, y <= r]), sum xs == r]
 
 gameWon :: Game -> Bool
 gameWon (Game {bigBoard = board}) = and $ Prelude.map (==0) [boardState board Data.Array.! (x,y)|x<-[1..boardDepth board],y<-[1..boardSize board]]
@@ -172,103 +157,75 @@ boardValueSum ((a,b):xs) g@(Game nDice dice board doubles rolls) = boardState bo
 rollSum :: Game -> Int
 rollSum g@(Game nDice dice board doubles rolls) = sum ([dieValue x | x <- dice])
 
-newPossibleMoves :: Game -> [[(Int, Int)]]
-newPossibleMoves g@(Game nDice dice board doubles rolls) = [xs | xs <- (sublists reducedBoardList), (boardValueSum xs g) == (rollSum g)] where
+possibleMoves :: Game -> [[(Int, Int)]]
+possibleMoves g@(Game nDice dice board doubles rolls) = [xs | xs <- (sublists reducedBoardList), (boardValueSum xs g) == (rollSum g)] where
     boardList = Prelude.foldr (++) [] ([take 1 (exposedCoordForColumn y g) |  y <- [1..boardSize board]])
     reducedBoardList = [(x,y) | (x,y) <- boardList, boardState board Data.Array.! (x,y) <= (rollSum g)]
 
-newPlayGame :: Game -> IO()
-newPlayGame g@(Game nDice dice board doubles rolls) = do
+depthString :: [(Int, Int)] -> Game -> String
+depthString [] _ = ""
+depthString ((x,y):xs) g@(Game nDice dice board doubles rolls) = ((replicate (x-1) '_') ++ show (boardState board Data.Array.! (x,y)) ++ " ") ++ depthString xs g
+
+removeChosenNumbers :: [(Int, Int)] -> Game -> Game
+removeChosenNumbers [] g = g
+removeChosenNumbers ((x,y):xs) g@(Game nDice dice board doubles rolls) = removeChosenNumbers xs (g {bigBoard = (removeFromBoard (x,y) (bigBoard g)), dice = take nDice (repeat (Die {dieSize = dieSize (head dice), dieValue = 0}))}) where
+    removeFromBoard :: (Int, Int) -> BigBoard -> BigBoard
+    removeFromBoard (a,b) board = board {boardState = array ((1,1),(boardDepth board,boardSize board)) [((x,y), if ((x == a) && (y == b)) then 0 else (boardState board Data.Array.! (x,y))) | x <- [1..boardDepth board], y <- [1..boardSize board]]
+}
+
+playGame :: Game -> IO()
+playGame g@(Game nDice dice board doubles rolls) = do
     if gameWon g 
     then do
         putStrLn "You Won!"
         putStrLn "Press Enter to Start New Game:"
         response <- getLine
-        newPlayGame (generateNewGame nDice (dieSize (head dice)) (boardSize board) (boardDepth board))
+        playGame (generateNewGame nDice (dieSize (head dice)) (boardSize board) (boardDepth board))
     else do
         if dieValue (head dice) == 0 then do
             putStrLn "\n*** Rolling! ***"
             dList <- (randomList nDice (dieSize (head dice)))
             let newG = setRollDoubles dList g
+            putStr "\nRolled a " 
+            putStrLn (show (rollSum newG))
             print newG
-            newPlayGame newG
+            playGame newG
         else do
-            if take 1 (newPossibleMoves g) == []
+            if take 1 (possibleMoves g) == []
             then do
                 if doubles == 0
                 then do
-                    print g
                     putStrLn "You Lost!"
                     putStrLn "Press Enter to Start New Game:"   
                     response <- getLine
-                    newPlayGame (generateNewGame nDice (dieSize (head dice)) (boardSize board) (boardDepth board))
+                    playGame (generateNewGame nDice (dieSize (head dice)) (boardSize board) (boardDepth board))
                 else do
                     putStrLn "\nCan't Move - Press Enter to use Doubles Token and Roll Again:"
                     response <- getLine
                     dList <- (randomList nDice (dieSize (head dice)))
-                    let newG = setRollDoubles dList g
+                    let newG = setRollDoubles dList (g {doublesTokens = (doubles - 1)})
+                    putStr "\nRolled a " 
+                    putStrLn (show (rollSum newG))
                     print newG
-                    newPlayGame newG
+                    playGame newG
             else do
-                putStrLn "here"
-
-       
-playGame :: Board -> IO ()
-playGame (r,[],d) = do
-    putStrLn "You Won!"
-    putStrLn "Press Enter to Start New Game:"
-    response <- getLine
-    playGame newBoard
-
-playGame b@(r,xs,d) = do
-    putStrLn ""
-    if r == 0
-    then do
-        putStrLn "Rolling!"
-        g <- getStdGen
-        d1 <- randomRIO (1,dn::Int)
-        d2 <- randomRIO (1,dn::Int)
-        print d1
-        print d2
-        playGame (setRoll (d1+d2) (setDoubles (if (d1==d2) then (d+1) else d) b))
-    else do
-        if take 1 (possibleMoves b) == []
-        then do
-            if d == 0
-            then do
-                print b
-                putStrLn "You Lost!"
-                putStrLn "Press Enter to Start New Game:"   
-                response <- getLine
-                playGame newBoard
-            else do
-                putStrLn "Can't Move - Rolling!"
-                g <- getStdGen
-                d1 <- randomRIO (1,dn::Int)
-                d2 <- randomRIO (1,dn::Int)
-                print d1
-                print d2
-                playGame (setRoll (d1+d2) (setDoubles (if (d1==d2) then d else (d-1)) b))
-        else do
-            print b
-            putStrLn "choose your move:"
-            putStr $ showChoice allowedMoves
-            userInput <- getLine 
-            let choice = read userInput :: Int
-            case Data.Map.lookup choice mapOfMoves of
-                Just _ -> 
-                    playGame (0, [x | x <- xs, not (x `elem` (possibleMoves b)!!(choice - 1))], d)
-                Nothing -> do
-                    putStrLn "Invalid choice. Choose again."
-                    playGame b
-            where
-                allowedMoves :: [(Int, [Int])]
-                allowedMoves = zip [1..] (possibleMoves b)
-                showChoice :: [(Int, [Int])] -> String
-                showChoice choices = unlines [show num ++ ": " ++ show move | (num, move) <- choices]
-                mapOfMoves :: Data.Map.Map Int [Int]
-                mapOfMoves = Data.Map.fromList allowedMoves
+                putStrLn "Choose Your Move:"
+                putStrLn $ Prelude.filter (/= '"') (showChoice allowedMoves)
+                userInput <- getLine 
+                let choice = read userInput :: Int
+                case Data.Map.lookup choice mapOfMoves of
+                    Just _ -> 
+                        playGame (removeChosenNumbers ((possibleMoves g)!!(choice-1)) g)
+                    Nothing -> do
+                        putStrLn "Invalid choice. Choose again."
+                        playGame g
+                where
+                    allowedMoves :: [(Int, [(Int, Int)])]
+                    allowedMoves = zip [1..] (possibleMoves g)
+                    showChoice :: [(Int, [(Int, Int)])] -> String
+                    showChoice choices = unlines [show num ++ ": " ++ show (depthString move g) | (num, move) <- choices]
+                    mapOfMoves :: Data.Map.Map Int [(Int, Int)]
+                    mapOfMoves = Data.Map.fromList allowedMoves
 
 main = do
-    playGame newBoard
-    
+    playGame doubleGame
